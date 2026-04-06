@@ -1,5 +1,6 @@
 {
   "expo": {
+    "backgroundColor": "#888888",
     "name": "pia",
     "slug": "pia",
     "version": "1.0.0",

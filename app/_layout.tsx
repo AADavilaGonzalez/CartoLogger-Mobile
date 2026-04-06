@@ -26,8 +26,20 @@ export default function RootLayout() {
     }
   }
 
+  function LoadingScreen() {
+    return (
+      <View style={{
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: appTheme.colors.background
+      }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
-    /* Use Suspense to handle the async loading of the DB */
     <Suspense fallback={<LoadingScreen />}>
       <SQLiteProvider 
         databaseName={dbName}
@@ -37,21 +49,21 @@ export default function RootLayout() {
       <SafeAreaProvider>
       <ThemeProvider value={navigationTheme}>
       <PaperProvider theme={appTheme}>
-        <Stack>
-          <Stack.Screen name="index" options={{ title: 'My Maps' }} />
+        <Stack
+          screenOptions={{
+            animation: "fade",
+            contentStyle: {
+              backgroundColor: appTheme.colors.background,
+            }
+          }}
+        >
+          <Stack.Screen name="index" options={{ title: 'CartoLogger' }} />
+          <Stack.Screen name="map" options={{ title: '' }} />
         </Stack>
       </PaperProvider>
       </ThemeProvider>
       </SafeAreaProvider>
       </SQLiteProvider>
     </Suspense>
-  );
-}
-
-function LoadingScreen() {
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" />
-    </View>
   );
 }

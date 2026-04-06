@@ -9,7 +9,8 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS maps (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL
+      title TEXT NOT NULL,
+      description TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS map_data (
