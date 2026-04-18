@@ -33,55 +33,55 @@ export default function Map() {
       setFeatures(await storage.getMapData(id))
     }
     loadFeatures();
-  },[id, navigation])
+  },[id, navigation]);
 
   const pushToQueue = (e: LongPressEvent) => {
     const coords = e.nativeEvent.coordinate;
     setQueue([...queue, coords]);
-  }
+  };
 
-  const popFromQueue = () => { setQueue(queue.slice(0, -1)); }
+  const popFromQueue = () => { setQueue(queue.slice(0, -1)); };
 
-  const clearQueue = () => { setQueue([]); }
+  const clearQueue = () => { setQueue([]); };
 
   const buildFeature = () => {
     if(queue.length === 0) { return; }
+
+    let newFeature: FeatureDTO;
     if(queue.length === 1) {
-      const newFeature: FeatureDTO = {
+      newFeature = {
         type: "marker",
         desc: "",
         coords: queue[0],
       };
-      setFeatures([...features, newFeature]);
-      clearQueue();
-      return;
     }
-    if(queue.length <= 3 || !isClosed(queue)) {
-      const newFeature: FeatureDTO = {
+    else if(queue.length <= 3 || !isClosed(queue)) {
+      newFeature = {
         type: "polyline",
         desc: "",
         coords: queue 
       };
-      setFeatures([...features, newFeature]);
-      clearQueue();
-      return;
     }
     else {
-      const newFeature: FeatureDTO = {
+      newFeature = {
         type: "polygon",
         desc: "",
         coords: queue.slice(0,-1)
       };
-      setFeatures([...features, newFeature]);
-      clearQueue();
-      return;
     }
-  }
+
+    const newFeatures = [...features, newFeature];
+    storage.saveMapData(id, newFeatures);
+    setFeatures(newFeatures);
+    clearQueue();
+  };
 
   const deleteFeature = () => {
     if(selectedFeature === null) { return; }
-    setFeatures(features.filter((elem)=> elem !== selectedFeature))
-  }
+    const newFeatures = features.filter((elem)=> elem !== selectedFeature);
+    storage.saveMapData(id, newFeatures);
+    setFeatures(newFeatures);
+  };
 
   const selectFeature = (feature: FeatureDTO | null) => {
     if(selectedFeature) { selectedFeature.desc = text; }
