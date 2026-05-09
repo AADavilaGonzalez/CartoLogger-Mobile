@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { StyleSheet, FlatList, View } from "react-native";
-import { Surface, Text, Button, ActivityIndicator } from "react-native-paper";
+import { Surface, Text, ActivityIndicator, FAB, TextInput } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
@@ -19,6 +19,7 @@ export default function Index() {
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [maps, setMaps] = useState<MapDTO[]>([]);
+  const [filterText, setFilterText] = useState("");
 
   const storage = useMapStorage();
 
@@ -74,6 +75,11 @@ export default function Index() {
     setDeleteMenuVisible(false);
   }
 
+  const filteredMaps = maps.filter(map => 
+    map.title.toLowerCase().includes(filterText.toLowerCase()) ||
+    map.description.toLowerCase().includes(filterText.toLowerCase())
+  );
+
   return (
     <SafeAreaView style={{flex: 1}} edges={["bottom"]}>
 
@@ -101,31 +107,39 @@ export default function Index() {
 
     <View style={styles.container}>
       <Text variant="displayMedium" style={styles.title}>Mis Mapas</Text>
+      <TextInput
+        placeholder="Buscar mapas..."
+        value={filterText}
+        onChangeText={setFilterText}
+        style={styles.searchInput}
+        left={<TextInput.Icon icon="magnify" />}
+      />
       <Surface style={styles.maps} elevation={2}>
       {
         !isLoaded ?
           <ActivityIndicator size="large"/>
-        : maps.length === 0 ? 
-          <Text variant="headlineMedium">No tienes ningun mapa, intenta agregar uno</Text>
+        : filteredMaps.length === 0 ? 
+          <Text variant="headlineMedium">{
+            maps.length === 0 ? "No tienes ningun mapa, intenta agregar uno" : "No se encontraron mapas"
+          }</Text>
         :
           <FlatList
-            data={maps}
+            data={filteredMaps}
             keyExtractor={item => item.id.toString()}
             renderItem={({item}) =>
               <MapBubble
                 map={item}
                 onPress={()=>{gotoMap(item)}}
+                onLongPress={()=>{beginDelete(item)}}
                 onEdit={()=>{beginEdit(item)}}
-                onLongEdit={()=>{beginDelete(item)}}
               />
             }
           />
       }
       </Surface>
-      <Surface style={styles.buttons} elevation={2}>
-        <Button onPress={()=>setAddMenuVisible(true)}>+</Button>
-      </Surface>
+      <FAB icon="plus" onPress={()=>setAddMenuVisible(true)}/>
     </View>
+
     </SafeAreaView>
   );
 }
@@ -137,11 +151,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignContent: "center",
   },
+  searchInput: {
+    width: "90%",
+    marginTop: 10,
+    marginBottom: 10,
+  },
   maps: {
     margin: 10,
     padding: 5,
     borderRadius: 10,
-    minHeight: "70%",
+    minHeight: "60%",
     minWidth: "90%"
   },
   buttons: {

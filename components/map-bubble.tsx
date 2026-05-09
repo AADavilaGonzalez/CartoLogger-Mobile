@@ -6,12 +6,12 @@ import { MapDTO } from "@/storage/types";
 type MapBubbleProps = {
   map: MapDTO
   onPress?: () => void,
+  onLongPress?: () => void,
   onEdit?: () => void,
-  onLongEdit?: () => void,
 }
 
 export function MapBubble({
-  map, onPress, onEdit, onLongEdit
+  map, onPress, onLongPress, onEdit
 }:MapBubbleProps) {
 
   const trim = (str: string, lenght: number) => {
@@ -29,10 +29,10 @@ export function MapBubble({
         title={map.title}
         description={trim(map.description, 50)}
         onPress={onPress}
+        onLongPress={onLongPress}
         right={()=>
           <IconButton
             onPress={onEdit}
-            onLongPress={onLongEdit}
             icon="dots-vertical"/>}
       />
     </Surface>
