@@ -3,13 +3,13 @@ import { useState, useEffect } from "react";
 import { StyleSheet, View, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Surface, Button, TextInput, useTheme, Modal, Portal, Text } from "react-native-paper";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import MapView, {
   Marker, Polyline, Polygon, LatLng,
   LongPressEvent
 } from  "react-native-maps";
 
-import { useMapStorage } from "@/hooks/use-map-storage";
+import { useStorage } from "@/hooks/use-storage";
 import { FeatureDTO } from "@/storage/types";
 
 export default function Map() {
@@ -17,8 +17,7 @@ export default function Map() {
   const id = parseInt(params.id as string);
   const title = params.title;
 
-  const navigation = useNavigation();
-  const storage = useMapStorage();
+  const storage = useStorage();
   const theme = useTheme();
 
   const [features, setFeatures] = useState<FeatureDTO[]>([]);
@@ -29,13 +28,11 @@ export default function Map() {
   const [editText, setEditText] = useState("");
 
   useEffect(()=>{
-    navigation.setOptions({title});
-
     const loadFeatures = async () => {
-      setFeatures(await storage.getMapData(id))
+      setFeatures(await storage.maps.getData(id))
     }
     loadFeatures();
-  },[id, navigation]);
+  },[id]);
 
   const pushToQueue = (e: LongPressEvent) => {
     const coords = e.nativeEvent.coordinate;
@@ -73,7 +70,7 @@ export default function Map() {
     }
 
     const newFeatures = [...features, newFeature];
-    storage.saveMapData(id, newFeatures);
+    storage.maps.setData(id, newFeatures);
     setFeatures(newFeatures);
     clearQueue();
   };
@@ -81,7 +78,7 @@ export default function Map() {
   const deleteFeature = () => {
     if(selectedFeature === null) { return; }
     const newFeatures = features.filter((elem)=> elem !== selectedFeature);
-    storage.saveMapData(id, newFeatures);
+    storage.maps.setData(id, newFeatures);
     setFeatures(newFeatures);
     setText("");
     setSelectedFeature(null);
@@ -90,7 +87,7 @@ export default function Map() {
   const selectFeature = (feature: FeatureDTO | null) => {
     if(selectedFeature) { 
       selectedFeature.desc = text;
-      storage.saveMapData(id, features);
+      storage.maps.setData(id, features);
     }
     setText(feature?.desc ?? "");
     setSelectedFeature(feature);
@@ -105,13 +102,16 @@ export default function Map() {
     setText(editText);
     if(selectedFeature) {
       selectedFeature.desc = editText;
-      storage.saveMapData(id, features);
+      storage.maps.setData(id, features);
     }
     setEditModalVisible(false);
   };
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        <View style={{ alignItems: "center" }}>
+          <Text variant="displaySmall">{title}</Text>
+        </View>
         <Surface style={styles.mapSurface}>
           <MapView style={styles.map} 
             onPress={()=>selectFeature(null)}  
@@ -240,7 +240,7 @@ function isClosed(points: LatLng[]): boolean {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "flex-start",
+    justifyContent: "center",
     alignItems: "stretch",
   },
   keyboardAvoidingView: {

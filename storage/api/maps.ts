@@ -6,7 +6,7 @@ import {
   FeatureDTO,
 } from "@/storage/types";
 
-export async function createMap(
+async function create(
   db: SQLiteDatabase, map: CreateMapDTO
 ): Promise<number> {
   let id = -1;
@@ -24,11 +24,11 @@ export async function createMap(
   return id;
 }
 
-export async function getMaps(db: SQLiteDatabase): Promise<MapDTO[]> {
+async function getAll(db: SQLiteDatabase): Promise<MapDTO[]> {
   return await db.getAllAsync('SELECT * FROM maps') as MapDTO[];
 }
 
-export async function setMap(
+async function set(
   db: SQLiteDatabase, map: MapDTO
 ): Promise<void> {
   const result = await db.runAsync(
@@ -38,10 +38,9 @@ export async function setMap(
   if(!result) { throw Error(`Could not update map with ID ${map.id}`); }
 }
 
-export async function deleteMap(
+async function deleteMap(
   db: SQLiteDatabase, mapId: number
 ): Promise<void> {
-
   const result = await db.runAsync(
     'DELETE FROM maps WHERE id = ?',
     [mapId]
@@ -49,7 +48,7 @@ export async function deleteMap(
   if(!result) { throw Error(`Could not delete map with ID ${mapId}`); }
 }
 
-export async function getMapData(
+async function getData(
   db: SQLiteDatabase, mapId: number
 ): Promise<FeatureDTO[]> {
   const row: {features: string} | null = await db.getFirstAsync(
@@ -60,13 +59,16 @@ export async function getMapData(
   return JSON.parse(row.features) as FeatureDTO[];
 }
 
-export async function saveMapData(
+async function setData(
   db: SQLiteDatabase, mapId: number, features: FeatureDTO[]
 ): Promise<void> {
-
   const json = JSON.stringify(features);
-  await db.runAsync(
+  const result = await db.runAsync(
     'UPDATE map_data SET features=? WHERE id=?',
     [json, mapId]
   );
+  if(!result) { throw Error(`Could not update map with ID ${mapId}`); }
 }
+
+const api = { create, getAll, set, delete: deleteMap, getData, setData };
+export default api;

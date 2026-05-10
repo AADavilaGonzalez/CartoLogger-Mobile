@@ -4,7 +4,7 @@ import { Surface, Text, ActivityIndicator, FAB, TextInput } from "react-native-p
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
-import { useMapStorage } from "@/hooks/use-map-storage";
+import { useStorage } from "@/hooks/use-storage";
 import { CreateMapDTO, type MapDTO } from "@/storage/types";
 
 import { MapBubble } from "@/components/map-bubble";
@@ -21,7 +21,7 @@ export default function Index() {
   const [maps, setMaps] = useState<MapDTO[]>([]);
   const [filterText, setFilterText] = useState("");
 
-  const storage = useMapStorage();
+  const storage = useStorage();
 
   const router = useRouter();
   const gotoMap = (map: MapDTO) => { 
@@ -30,14 +30,14 @@ export default function Index() {
 
   useEffect(() => {
     const loadMaps = async () => {
-      setMaps(await storage.getMaps())
+      setMaps(await storage.maps.getAll())
       setIsLoaded(true)
     };
     loadMaps();
   }, []);
 
   const addMap = async (map: CreateMapDTO) => {
-    const id = await storage.createMap(map);
+    const id = await storage.maps.create(map);
     const newMap: MapDTO = {
       id: id,
       title: map.title,
@@ -57,7 +57,7 @@ export default function Index() {
   const editMap = async (map: CreateMapDTO) => {
     if(!selectedMap) { return; }
     Object.assign(selectedMap, map);
-    await storage.setMap(selectedMap);
+    await storage.maps.set(selectedMap);
     setMaps([...maps]);
     setEditMenuVisible(false);
   }
@@ -69,7 +69,7 @@ export default function Index() {
 
   const deleteMap = async () => {
     if(!selectedMap) { return; }
-    await storage.deleteMap(selectedMap.id);
+    await storage.maps.delete(selectedMap.id);
     const idx = maps.findIndex((elem)=>elem.id === selectedMap.id);
     setMaps(maps.toSpliced(idx, 1));
     setDeleteMenuVisible(false);
