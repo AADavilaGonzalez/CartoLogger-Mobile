@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { StyleSheet, FlatList, View } from "react-native";
 import { Surface, Text, ActivityIndicator, FAB, TextInput } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 
 import { useStorage } from "@/hooks/use-storage";
 import { CreateMapDTO, type MapDTO } from "@/storage/types";
@@ -28,13 +28,15 @@ export default function Index() {
     router.push({ pathname: "/map", params: map });
   }
 
-  useEffect(() => {
-    const loadMaps = async () => {
-      setMaps(await storage.maps.getAll())
-      setIsLoaded(true)
-    };
-    loadMaps();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      const loadMaps = async () => {
+        setMaps(await storage.maps.getAll())
+        setIsLoaded(true)
+      };
+      loadMaps();
+    }, [storage])
+  );
 
   const addMap = async (map: CreateMapDTO) => {
     const id = await storage.maps.create(map);

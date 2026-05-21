@@ -3,11 +3,14 @@ import { SQLiteDatabase } from "expo-sqlite";
 type SettingsMap = {
   theme: "system" | "light" | "dark",
   useLocation: "true" | "false",
+  mapType: "standard" | "satellite" | "hybrid" | "terrain",
+  [key: string]: any,
 }
 
 export const defaultSettings: SettingsMap = {
   theme: "system",
   useLocation: "true",
+  mapType: "standard",
 };
 
 async function get<K extends keyof SettingsMap>(
@@ -25,8 +28,8 @@ async function set<K extends keyof SettingsMap>(
   db: SQLiteDatabase, setting: K, value: SettingsMap[K]
 ): Promise<void> {
   const result = await db.runAsync(
-    'UPDATE settings SET value=? WHERE setting=?',
-    [value, setting]
+    'INSERT OR REPLACE INTO settings (setting, value) VALUES (?, ?)',
+    [setting, value]
   );
   if(!result) { throw Error(`Could not set setting '${setting}'`); }
 }

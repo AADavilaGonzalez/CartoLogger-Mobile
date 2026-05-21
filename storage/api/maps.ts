@@ -101,8 +101,17 @@ async function setRegion(
   }
 }
 
+async function get(
+  db: SQLiteDatabase, mapId: number
+): Promise<MapDTO | null> {
+  return await db.getFirstAsync(
+    'SELECT * FROM maps WHERE id = ?',
+    [mapId]
+  ) as MapDTO | null;
+}
+
 const api = {
-  create, getAll, set, delete: deleteMap,
+  create, getAll, get, set, delete: deleteMap,
   getData, setFeatures, setRegion
 };
 export default api;
