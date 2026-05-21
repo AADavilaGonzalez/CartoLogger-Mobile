@@ -1,4 +1,4 @@
-import { LatLng } from "react-native-maps";
+import { LatLng, Region } from "react-native-maps";
 
 export type CreateMapDTO = {
   title: string,
@@ -27,3 +27,7 @@ type PolygonDTO = {
 
 export type FeatureDTO = MarkerDTO | PolylineDTO | PolygonDTO;
 
+export type MapDataDTO = {
+  region: Region,
+  features: FeatureDTO[],
+}

@@ -7,7 +7,7 @@ import { useThemeContext } from "@/context/theme-context";
 
 export default function MapConfig() {
   const storage = useStorage();
-  const { themeMode, setThemeMode } = useThemeContext();
+  const {themeMode, setThemeMode } = useThemeContext();
 
   const [useLocation, setUseLocation] = useState("");
 

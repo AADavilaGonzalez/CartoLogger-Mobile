@@ -6,7 +6,7 @@ import { Surface, Button, TextInput, useTheme, Modal, Portal, Text } from "react
 import { useLocalSearchParams } from "expo-router";
 import MapView, {
   Marker, Polyline, Polygon, LatLng,
-  LongPressEvent
+  LongPressEvent, Region
 } from  "react-native-maps";
 
 import { useStorage } from "@/hooks/use-storage";
@@ -23,13 +23,18 @@ export default function Map() {
   const [features, setFeatures] = useState<FeatureDTO[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<FeatureDTO | null>(null);
   const [queue, setQueue] = useState<LatLng[]>([]);
+
   const [text, setText] = useState("");
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editText, setEditText] = useState("");
 
+  const [region, setRegion] = useState<Region | undefined>(undefined);
+
   useEffect(()=>{
     const loadFeatures = async () => {
-      setFeatures(await storage.maps.getData(id))
+      const data = await storage.maps.getData(id);
+      setRegion(data.region) 
+      setFeatures(data.features);
     }
     loadFeatures();
   },[id]);
@@ -70,7 +75,7 @@ export default function Map() {
     }
 
     const newFeatures = [...features, newFeature];
-    storage.maps.setData(id, newFeatures);
+    storage.maps.setFeatures(id, newFeatures);
     setFeatures(newFeatures);
     clearQueue();
   };
@@ -78,7 +83,7 @@ export default function Map() {
   const deleteFeature = () => {
     if(selectedFeature === null) { return; }
     const newFeatures = features.filter((elem)=> elem !== selectedFeature);
-    storage.maps.setData(id, newFeatures);
+    storage.maps.setFeatures(id, newFeatures);
     setFeatures(newFeatures);
     setText("");
     setSelectedFeature(null);
@@ -87,7 +92,7 @@ export default function Map() {
   const selectFeature = (feature: FeatureDTO | null) => {
     if(selectedFeature) { 
       selectedFeature.desc = text;
-      storage.maps.setData(id, features);
+      storage.maps.setFeatures(id, features);
     }
     setText(feature?.desc ?? "");
     setSelectedFeature(feature);
@@ -102,7 +107,7 @@ export default function Map() {
     setText(editText);
     if(selectedFeature) {
       selectedFeature.desc = editText;
-      storage.maps.setData(id, features);
+      storage.maps.setFeatures(id, features);
     }
     setEditModalVisible(false);
   };
@@ -114,9 +119,11 @@ export default function Map() {
         </View>
         <Surface style={styles.mapSurface}>
           <MapView style={styles.map} 
-            onPress={()=>selectFeature(null)}  
+            region={region}
+            onPress={()=>selectFeature(null)}
             onLongPress={pushToQueue}
-            userInterfaceStyle={theme.dark ? 'dark' : 'light'}
+            onRegionChangeComplete={(region) => storage.maps.setRegion(id, region)}
+            showsUserLocation={true}
           >
           {queue.length == 1 && <Marker coordinate={queue[0]}/>}
           {queue.length > 1 && 

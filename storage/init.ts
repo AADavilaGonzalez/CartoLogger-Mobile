@@ -15,6 +15,7 @@ function createTables(db:SQLiteDatabase): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS map_data (
       id INTEGER PRIMARY KEY,
+      region TEXT NOT NULL,
       features TEXT NOT NULL,
       FOREIGN KEY (id) REFERENCES maps(id) ON DELETE CASCADE
     );

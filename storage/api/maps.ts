@@ -1,10 +1,20 @@
 import { SQLiteDatabase } from "expo-sqlite";
+import { Region } from "react-native-maps";
 
 import {
   CreateMapDTO,
   MapDTO,
   FeatureDTO,
+  MapDataDTO,
 } from "@/storage/types";
+
+const defaultRegion: Region = {
+  latitude: 0,
+  longitude: 0,
+  latitudeDelta: 0.09,
+  longitudeDelta: 0.09,
+}
+const defaultRegionJSON = JSON.stringify(defaultRegion);
 
 async function create(
   db: SQLiteDatabase, map: CreateMapDTO
@@ -17,8 +27,8 @@ async function create(
     );
     id = result.lastInsertRowId;
     await db.runAsync(
-      'INSERT INTO map_data(id, features) VALUES (?, ?)',
-      [id, "[]"]
+      'INSERT INTO map_data(id, region, features) VALUES (?, ?, ?)',
+      [id, defaultRegionJSON, "[]"]
     );
   });
   return id;
@@ -50,16 +60,22 @@ async function deleteMap(
 
 async function getData(
   db: SQLiteDatabase, mapId: number
-): Promise<FeatureDTO[]> {
-  const row: {features: string} | null = await db.getFirstAsync(
-    'SELECT features FROM map_data WHERE id=?',
+): Promise<MapDataDTO> {
+  const row: {
+    region: string,
+    features: string
+  } | null = await db.getFirstAsync(
+    'SELECT region, features FROM map_data WHERE id=?',
     [mapId]
   );
   if (!row) { throw Error(`Data for Map ID ${mapId} not found`); }
-  return JSON.parse(row.features) as FeatureDTO[];
+  return {
+    region: JSON.parse(row.region),
+    features: JSON.parse(row.features),
+  };
 }
 
-async function setData(
+async function setFeatures(
   db: SQLiteDatabase, mapId: number, features: FeatureDTO[]
 ): Promise<void> {
   const json = JSON.stringify(features);
@@ -67,8 +83,26 @@ async function setData(
     'UPDATE map_data SET features=? WHERE id=?',
     [json, mapId]
   );
-  if(!result) { throw Error(`Could not update map with ID ${mapId}`); }
+  if(!result) {
+    throw Error(`Could not update features on map with ID ${mapId}`);
+  }
 }
 
-const api = { create, getAll, set, delete: deleteMap, getData, setData };
+async function setRegion(
+  db: SQLiteDatabase, mapId: number, region: Region
+): Promise<void> {
+  const json = JSON.stringify(region);
+  const result = await db.runAsync(
+    'UPDATE map_data SET region=? WHERE id=?',
+    [json, mapId]
+  );
+  if(!result) {
+    throw Error(`Could not update region on map with ID ${mapId}`);
+  }
+}
+
+const api = {
+  create, getAll, set, delete: deleteMap,
+  getData, setFeatures, setRegion
+};
 export default api;
