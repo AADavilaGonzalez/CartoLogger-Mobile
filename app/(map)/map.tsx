@@ -369,7 +369,7 @@ export default function Map() {
     }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -528,7 +528,7 @@ export default function Map() {
                   <View style={[styles.thumbnailContainer, { opacity: isSelected ? 0 : 1 }]}>
                     <Image
                       source={{ uri: feature.imageUri }}
-                      style={styles.thumbnail}
+                      style={Platform.OS === "android" ? styles.androidThumbnail : styles.thumbnail}
                       onLoad={() => setImageLoaded(prev => ({ ...prev, [fKey]: true }))}
                     />
                     <View style={styles.thumbnailArrow} />
@@ -583,7 +583,7 @@ export default function Map() {
                     <View style={styles.thumbnailContainer}>
                       <Image
                         source={{ uri: feature.imageUri }}
-                        style={styles.thumbnail}
+                        style={Platform.OS === "android" ? styles.androidThumbnail : styles.thumbnail}
                         onLoad={() => setImageLoaded(prev => ({ ...prev, [fKey]: true }))}
                       />
                       <View style={styles.thumbnailArrow} />
@@ -632,7 +632,7 @@ export default function Map() {
                     <View style={styles.thumbnailContainer}>
                       <Image
                         source={{ uri: feature.imageUri }}
-                        style={styles.thumbnail}
+                        style={Platform.OS === "android" ? styles.androidThumbnail : styles.thumbnail}
                         onLoad={() => setImageLoaded(prev => ({ ...prev, [fKey]: true }))}
                       />
                       <View style={styles.thumbnailArrow} />
@@ -686,90 +686,116 @@ export default function Map() {
                     onSelectItem={handleSelectItem}
                   />
                 ) : region ? (
-                  <MapView
-                    style={styles.map}
-                    ref={mapRef}
-                    initialRegion={region}
-                    mapType={mapType}
-                    onPress={() => { if (!justSelectedRef.current && !justLongPressedRef.current) selectFeature(null); }}
-                    onLongPress={pushToQueue}
-                    onRegionChangeComplete={(r) => storage.maps.setRegion(id, r)}
-                    showsUserLocation={useLocationEnabled}
-                  >
-                    {queue.map((item, idx) => (
-                      <Marker
-                        key={`queue-marker-${item.id}`}
-                        coordinate={item.renderCoord ?? item.coord}
-                        draggable
-                        tracksViewChanges={tracksMap[item.id] ?? true}
-                        onDragEnd={async (e) => {
-                          const newRenderCoord = e.nativeEvent.coordinate;
-                          const map = mapRef.current as any;
-                          let newRealCoord: LatLng = newRenderCoord;
-                          if (map?.pointForCoordinate && map?.coordinateForPoint) {
-                            try {
-                              const pt = await map.pointForCoordinate(newRenderCoord);
-                              const realPoint = { x: pt.x, y: pt.y + VISUAL_PIN_OFFSET_PX };
-                              newRealCoord = await map.coordinateForPoint(realPoint);
-                            } catch (err) {
-                              console.warn("Could not convert dragged render coord to real coord", err);
+                  <>
+                    <MapView
+                      style={styles.map}
+                      ref={mapRef}
+                      initialRegion={region}
+                      mapType={mapType}
+                      onPress={() => { if (!justSelectedRef.current && !justLongPressedRef.current) selectFeature(null); }}
+                      onLongPress={pushToQueue}
+                      onRegionChangeComplete={(r) => storage.maps.setRegion(id, r)}
+                      showsUserLocation={useLocationEnabled}
+                    >
+                      {queue.map((item, idx) => (
+                        <Marker
+                          key={`queue-marker-${item.id}`}
+                          coordinate={Platform.OS === "android" ? item.coord : (item.renderCoord ?? item.coord)}
+                          draggable
+                          pinColor={Platform.OS === "android" ? "blue" : undefined}
+                          opacity={Platform.OS === "android" ? 0.6 : undefined}
+                          tracksViewChanges={Platform.OS === "android" ? false : (tracksMap[item.id] ?? true)}
+                          onDragEnd={async (e) => {
+                            const newRenderCoord = e.nativeEvent.coordinate;
+                            let newRealCoord: LatLng = newRenderCoord;
+                            if (Platform.OS !== "android") {
+                              const map = mapRef.current as any;
+                              if (map?.pointForCoordinate && map?.coordinateForPoint) {
+                                try {
+                                  const pt = await map.pointForCoordinate(newRenderCoord);
+                                  const realPoint = { x: pt.x, y: pt.y + VISUAL_PIN_OFFSET_PX };
+                                  newRealCoord = await map.coordinateForPoint(realPoint);
+                                } catch (err) {
+                                  console.warn("Could not convert dragged render coord to real coord", err);
+                                }
+                              }
                             }
-                          }
-                          setQueue(prev => prev.map(q => q.id === item.id ? { ...q, coord: newRealCoord, renderCoord: newRenderCoord } : q));
-                        }}
-                      >
-                        <View style={styles.silhouetteContainer}>
-                          <View style={[styles.silhouetteRing, { borderColor: theme.colors.primary, opacity: 0.4 }]} />
-                          <Ionicons name="location" size={60} color={theme.colors.primary} style={styles.silhouetteFill} />
-                          <Ionicons name="location-outline" size={60} color={theme.colors.primary} style={styles.silhouetteOutline} />
-                          <View style={[styles.silhouetteDot, { backgroundColor: theme.colors.primary }]} />
-                        </View>
-                      </Marker>
-                    ))}
-                    {queue.length > 1 &&
-                      <Polyline
-                        key="queue-polyline"
-                        strokeWidth={4}
-                        lineCap="round"
-                        lineJoin="round"
-                        strokeColor="#FF0000"
-                        coordinates={queue.map(q => q.coord)}
-                      />
-                    }
-                    {renderedFeatures}
-                    {selectedFeature && (
-                      <Marker
-                        key={`nav-bubble-${selectedFeatureId}`}
-                        coordinate={
-                          selectedFeature.type === "marker"
-                            ? selectedFeature.coords
-                            : selectedFeature.coords[0]
-                        }
-                        stopPropagation={true}
-                        anchor={{ x: 0.5, y: 1 }}
-                      >
-                        <View style={{ alignItems: "center" }}>
-                          <View style={styles.calloutBubble}>
-                            <View style={styles.calloutRow}>
-                              <Text style={styles.calloutText} onPress={openEditModal}>
-                                {selectedFeature.desc || "Toca para agregar descripción..."}
-                              </Text>
-                              <View style={styles.calloutDivider} />
-                              <Ionicons
-                                name="navigate"
-                                size={18}
-                                color={theme.colors.primary}
-                                onPress={handleNavigationPress}
-                                style={styles.calloutNavIcon}
-                              />
+                            setQueue(prev => prev.map(q => q.id === item.id ? { ...q, coord: newRealCoord, renderCoord: Platform.OS === "android" ? undefined : newRenderCoord } : q));
+                          }}
+                        >
+                          {Platform.OS === "android" ? null : (
+                            <View style={styles.silhouetteContainer}>
+                              <View style={[styles.silhouetteRing, { borderColor: theme.colors.primary, opacity: 0.4 }]} />
+                              <Ionicons name="location" size={60} color={theme.colors.primary} style={styles.silhouetteFill} />
+                              <Ionicons name="location-outline" size={60} color={theme.colors.primary} style={styles.silhouetteOutline} />
+                              <View style={[styles.silhouetteDot, { backgroundColor: theme.colors.primary }]} />
                             </View>
+                          )}
+                        </Marker>
+                      ))}
+                      {queue.length > 1 &&
+                        <Polyline
+                          key="queue-polyline"
+                          strokeWidth={4}
+                          lineCap="round"
+                          lineJoin="round"
+                          strokeColor="#FF0000"
+                          coordinates={queue.map(q => q.coord)}
+                        />
+                      }
+                      {renderedFeatures}
+                      {Platform.OS !== "android" && selectedFeature && (
+                        <Marker
+                          key={`nav-bubble-${selectedFeatureId}`}
+                          coordinate={
+                            selectedFeature.type === "marker"
+                              ? selectedFeature.coords
+                              : selectedFeature.coords[0]
+                          }
+                          stopPropagation={true}
+                          anchor={{ x: 0.5, y: 1 }}
+                        >
+                          <View style={{ alignItems: "center" }}>
+                            <View style={styles.calloutBubble}>
+                              <View style={styles.calloutRow}>
+                                <Text style={styles.calloutText} onPress={openEditModal}>
+                                  {selectedFeature.desc || "Toca para agregar descripción..."}
+                                </Text>
+                                <View style={styles.calloutDivider} />
+                                <Ionicons
+                                  name="navigate"
+                                  size={18}
+                                  color={theme.colors.primary}
+                                  onPress={handleNavigationPress}
+                                  style={styles.calloutNavIcon}
+                                />
+                              </View>
+                            </View>
+                            <View style={styles.calloutArrow} />
+                            <View style={{ height: selectedFeature.type === "marker" ? 34 : 10 }} />
                           </View>
-                          <View style={styles.calloutArrow} />
-                          <View style={{ height: selectedFeature.type === "marker" ? 34 : 10 }} />
+                        </Marker>
+                      )}
+                    </MapView>
+                    {Platform.OS === "android" && selectedFeature && (
+                      <View style={styles.androidCalloutCard}>
+                        <TouchableOpacity style={styles.androidCalloutTextContainer} onPress={openEditModal}>
+                          <Text numberOfLines={2} style={styles.androidCalloutText}>
+                            {selectedFeature.desc || "Toca para agregar descripción..."}
+                          </Text>
+                        </TouchableOpacity>
+                        <View style={styles.androidCalloutActions}>
+                          <TouchableOpacity onPress={handleNavigationPress} style={styles.androidCalloutButton}>
+                            <Ionicons name="navigate" size={20} color={theme.colors.primary} />
+                          </TouchableOpacity>
+                          <View style={styles.androidCalloutDivider} />
+                          <TouchableOpacity onPress={() => selectFeature(null)} style={styles.androidCalloutButton}>
+                            <Ionicons name="close" size={20} color="#777777" />
+                          </TouchableOpacity>
                         </View>
-                      </Marker>
+                      </View>
                     )}
-                  </MapView>
+                  </>
                 ) : (
                   <View style={styles.map} />
                 )}
