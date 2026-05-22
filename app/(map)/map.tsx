@@ -791,13 +791,14 @@ const styles = StyleSheet.create({
   },
   controlsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
     alignItems: "center",
     padding: 8,
     borderRadius: 8,
   },
   button: {
-    marginHorizontal: 6,
+    marginTop: 3,
+    marginHorizontal: 3,
     minWidth: 80,
   },
   descriptionView: {
