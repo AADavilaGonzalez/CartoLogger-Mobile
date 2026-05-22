@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { StyleSheet, View, ScrollView, Alert, Keyboard, KeyboardAvoidingView, Platform, useWindowDimensions, Linking, TouchableWithoutFeedback } from "react-native";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { View, ScrollView, Alert, Keyboard, KeyboardAvoidingView, Platform, useWindowDimensions, Linking, TouchableWithoutFeedback, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Surface, Button, TextInput, useTheme, Modal, Portal, Text, Searchbar, List } from "react-native-paper";
-import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import { Surface, Button, TextInput, useTheme, Modal, Portal, Text, Searchbar, List, SegmentedButtons } from "react-native-paper";
+import { useLocalSearchParams, useFocusEffect, useNavigation } from "expo-router";
 import MapView, {
   Marker, Polyline, Polygon, LatLng,
   LongPressEvent, Region
@@ -16,6 +16,8 @@ import { FeatureDTO } from "@/storage/types";
 import { setActiveMapId } from "@/storage/active-map";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
+import MapElements from "@/components/mapelements";
+import { styles } from "@/styles/map.styles";
 
 type NominatimResult = {
   place_id: number;
@@ -37,16 +39,18 @@ export default function Map() {
 
   const storage = useStorage();
   const theme = useTheme();
+  const navigation = useNavigation();
 
   const mapRef = useRef<MapView>(null);
   const justSelectedRef = useRef(false);
   const justLongPressedRef = useRef(false);
 
+  const [title, setTitle] = useState("");
   const [features, setFeatures] = useState<FeatureDTO[]>([]);
-  const [selectedFeature, setSelectedFeature] = useState<FeatureDTO | null>(null);
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
+  const selectedFeature = features.find(f => f.id === selectedFeatureId) || null;
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [tracksMap, setTracksMap] = useState<Record<string, boolean>>({});
-  const [marginOffset, setMarginOffset] = useState(0);
   const VISUAL_PIN_OFFSET_PX = 24; // pixels to shift the rendered marker up so its tip matches the real coordinate
 
   useEffect(() => {
@@ -56,14 +60,42 @@ export default function Map() {
   }, [id]);
 
   useEffect(() => {
-    setMarginOffset(prev => (prev === 0 ? 1 : 0));
-  }, [queue.length, features.length]);
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.setOptions({
+        headerLeft: () => (
+          <TouchableOpacity
+            onPress={() => parent.goBack()}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginLeft: 8,
+              paddingVertical: 8,
+              paddingRight: 8,
+            }}
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.colors.primary} />
+            <Text style={{ color: theme.colors.primary, fontSize: 16, fontWeight: "500" }}>
+              regresar
+            </Text>
+          </TouchableOpacity>
+        ),
+        headerTitleAlign: "left",
+        title: title || "Mapa",
+      });
+    }
+  }, [navigation, title, theme]);
 
   const [text, setText] = useState("");
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editText, setEditText] = useState("");
   const [editImageUri, setEditImageUri] = useState<string | null>(null);
-  const [loadedImages, setLoadedImages] = useState<{ [key: string]: boolean }>({});
+  // Tracks whether the image inside each custom Marker has finished loading.
+  // Keyed by feature.id so keys never collide across features.
+  // While false, tracksViewChanges=true lets react-native-maps re-snapshot the
+  // marker each render until expo-image finishes decoding. Once true, we freeze
+  // snapshots to prevent the marker from flickering on unrelated re-renders.
+  const [imageLoaded, setImageLoaded] = useState<Record<string, boolean>>({});
 
   const [region, setRegion] = useState<Region | undefined>(undefined);
   const [useLocationEnabled, setUseLocationEnabled] = useState(false);
@@ -74,10 +106,17 @@ export default function Map() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
+  const [activeTab, setActiveTab] = useState<"map" | "list">("map");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   useEffect(() => {
+    setImageLoaded({});  // reset image cache when switching maps
     const loadFeatures = async () => {
       try {
+        const map = await storage.maps.get(id);
+        if (map) {
+          setTitle(map.title);
+        }
         const data = await storage.maps.getData(id);
         if (data.region.latitude === 0 && data.region.longitude === 0) {
           try {
@@ -106,7 +145,12 @@ export default function Map() {
         } else {
           setRegion(data.region);
         }
-        setFeatures(data.features);
+        const featuresWithIds = data.features.map((f, idx) => f.id ? f : { ...f, id: `${f.type}-${Date.now()}-${Math.random()}-${idx}` });
+        const hasMissingIds = data.features.some(f => !f.id);
+        if (hasMissingIds) {
+          await storage.maps.setFeatures(id, featuresWithIds);
+        }
+        setFeatures(featuresWithIds);
       } catch (err) {
         console.warn("Error loading map features", err);
       }
@@ -118,8 +162,17 @@ export default function Map() {
     useCallback(() => {
       const reloadFeatures = async () => {
         try {
+          const map = await storage.maps.get(id);
+          if (map) {
+            setTitle(map.title);
+          }
           const data = await storage.maps.getData(id);
-          setFeatures(data.features);
+          const featuresWithIds = data.features.map((f, idx) => f.id ? f : { ...f, id: `${f.type}-${Date.now()}-${Math.random()}-${idx}` });
+          const hasMissingIds = data.features.some(f => !f.id);
+          if (hasMissingIds) {
+            await storage.maps.setFeatures(id, featuresWithIds);
+          }
+          setFeatures(featuresWithIds);
         } catch (err) {
           console.warn("Error reloading map features", err);
         }
@@ -209,14 +262,22 @@ export default function Map() {
 
   const clearQueue = () => { setQueue([]); };
 
-  
+
 
   const buildFeature = () => {
     if (queue.length === 0) { return; }
 
+    // Flush any pending desc change for the currently selected feature into the
+    // base array BEFORE appending the new feature — single setFeatures call.
+    let baseFeatures = features;
+    if (selectedFeature) {
+      baseFeatures = features.map(f => f.id === selectedFeature.id ? { ...f, desc: text } : f);
+    }
+
     let newFeature: FeatureDTO;
     if (queue.length === 1) {
       newFeature = {
+        id: `marker-${Date.now()}-${Math.random()}`,
         type: "marker",
         desc: "",
         coords: queue[0].coord,
@@ -224,6 +285,7 @@ export default function Map() {
     }
     else if (queue.length <= 3 || !isClosed(queue.map(q => q.coord))) {
       newFeature = {
+        id: `polyline-${Date.now()}-${Math.random()}`,
         type: "polyline",
         desc: "",
         coords: queue.map(q => q.coord),
@@ -231,39 +293,54 @@ export default function Map() {
     }
     else {
       newFeature = {
+        id: `polygon-${Date.now()}-${Math.random()}`,
         type: "polygon",
         desc: "",
         coords: queue.slice(0, -1).map(q => q.coord),
       };
     }
 
-    const newFeatures = [...features, newFeature];
+    const newFeatures = [...baseFeatures, newFeature];
     storage.maps.setFeatures(id, newFeatures);
     setFeatures(newFeatures);
+    setSelectedFeatureId(null);
+    setText("");
     clearQueue();
   };
 
   const deleteFeature = () => {
     if (selectedFeature === null) { return; }
-    const newFeatures = features.filter((elem) => elem !== selectedFeature);
+    const newFeatures = features.filter((elem) => elem.id !== selectedFeature.id);
     storage.maps.setFeatures(id, newFeatures);
     setFeatures(newFeatures);
     setText("");
-    setSelectedFeature(null);
+    setSelectedFeatureId(null);
   };
 
-  const selectFeature = (feature: FeatureDTO | null) => {
+  const selectFeature = useCallback((feature: FeatureDTO | null) => {
     if (feature !== null) {
       justSelectedRef.current = true;
       setTimeout(() => { justSelectedRef.current = false; }, 100);
     }
-    if (selectedFeature) {
-      selectedFeature.desc = text;
-      storage.maps.setFeatures(id, features);
-    }
     setText(feature?.desc ?? "");
-    setSelectedFeature(feature);
-  };
+    setSelectedFeatureId(feature?.id ?? null);
+  }, []);
+
+  const handleSelectItem = useCallback((feature: FeatureDTO) => {
+    selectFeature(feature);
+    setActiveTab("map");
+    const coords = feature.type === "marker" ? feature.coords : feature.coords[0];
+    if (coords) {
+      setTimeout(() => {
+        mapRef.current?.animateToRegion({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          latitudeDelta: 0.012,
+          longitudeDelta: 0.012,
+        }, 1000);
+      }, 300);
+    }
+  }, [selectFeature, setActiveTab]);
 
   const openEditModal = () => {
     setEditText(text);
@@ -274,9 +351,9 @@ export default function Map() {
   const saveEditText = () => {
     setText(editText);
     if (selectedFeature) {
-      selectedFeature.desc = editText;
-      selectedFeature.imageUri = editImageUri ?? undefined;
-      storage.maps.setFeatures(id, features);
+      const updatedFeatures = features.map(f => f.id === selectedFeature.id ? { ...f, desc: editText, imageUri: editImageUri ?? undefined } : f);
+      storage.maps.setFeatures(id, updatedFeatures);
+      setFeatures(updatedFeatures);
     }
     setEditModalVisible(false);
   };
@@ -345,42 +422,75 @@ export default function Map() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+  const performSearch = useCallback(async (query: string) => {
+    if (!query.trim()) return;
     setIsSearching(true);
     try {
+      let viewboxParam = "";
+      if (region) {
+        const delta = 0.5; // Biasing searches within a ~50km box around the map viewport
+        const left = region.longitude - delta;
+        const right = region.longitude + delta;
+        const top = region.latitude + delta;
+        const bottom = region.latitude - delta;
+        viewboxParam = `&viewbox=${left},${top},${right},${bottom}`;
+      }
+
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=5`,
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}${viewboxParam}&format=json&limit=5`,
         { headers: { "User-Agent": "CartoLogger-Mobile/1.0", "Accept": "application/json" } }
       );
-      const data: NominatimResult[] = await response.json();
-      Keyboard.dismiss();
-      if (data.length > 0) {
+      const data = await response.json();
+      if (Array.isArray(data)) {
         setSearchResults(data);
       } else {
         setSearchResults([]);
-        Alert.alert("Lugar no encontrado", "No se encontraron resultados para la búsqueda.");
       }
     } catch (err) {
       console.warn("Error in search:", err);
-      Alert.alert("Error", "No se pudo realizar la búsqueda.");
     } finally {
       setIsSearching(false);
     }
+  }, [region]);
+
+  // Debounce search text changes (500ms delay) to limit API requests
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      performSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery, performSearch]);
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    Keyboard.dismiss();
+    await performSearch(searchQuery);
   };
 
   const handleSelectResult = (result: NominatimResult) => {
     const lat = parseFloat(result.lat);
     const lon = parseFloat(result.lon);
+    if (isNaN(lat) || isNaN(lon)) {
+      Alert.alert("Error", "Coordenadas inválidas para este lugar.");
+      return;
+    }
 
-    mapRef.current?.animateToRegion({
+    const newReg = {
       latitude: lat,
       longitude: lon,
-      latitudeDelta: 0.05,
-      longitudeDelta: 0.05,
-    });
+      latitudeDelta: 0.012,
+      longitudeDelta: 0.012,
+    };
+
+    setRegion(newReg);
+    mapRef.current?.animateToRegion(newReg, 1000);
 
     const newFeature: FeatureDTO = {
+      id: `marker-${Date.now()}-${Math.random()}`,
       type: "marker",
       desc: result.display_name,
       coords: { latitude: lat, longitude: lon },
@@ -389,11 +499,153 @@ export default function Map() {
     const newFeatures = [...features, newFeature];
     storage.maps.setFeatures(id, newFeatures);
     setFeatures(newFeatures);
+    selectFeature(newFeature);
 
     setSearchResults([]);
     setSearchQuery("");
     Keyboard.dismiss();
+    setIsSearchFocused(false);
   };
+
+  const renderedFeatures = useMemo(() => {
+    return features.map((feature, idx) => {
+      const fKey = feature.id || `feature-${idx}`;
+      const isSelected = feature.id === selectedFeatureId;
+      switch (feature.type) {
+        case "marker":
+          if (!showMarkers) return null;
+          if (feature.imageUri) {
+            return (
+              <Marker
+                key={`${fKey}-img`}
+                coordinate={feature.coords}
+                stopPropagation={true}
+                onPress={() => selectFeature(feature)}
+                anchor={{ x: 0.5, y: 1 }}
+                tracksViewChanges={!imageLoaded[fKey]}
+              >
+                <View style={{ alignItems: "center" }}>
+                  <View style={[styles.thumbnailContainer, { opacity: isSelected ? 0 : 1 }]}>
+                    <Image
+                      source={{ uri: feature.imageUri }}
+                      style={styles.thumbnail}
+                      onLoad={() => setImageLoaded(prev => ({ ...prev, [fKey]: true }))}
+                    />
+                    <View style={styles.thumbnailArrow} />
+                  </View>
+                  <Ionicons name="location" size={32} color={theme.colors.primary} />
+                </View>
+              </Marker>
+            );
+          }
+          return (
+            <Marker
+              key={`${fKey}-pin`}
+              coordinate={feature.coords}
+              stopPropagation={true}
+              onPress={() => selectFeature(feature)}
+            />
+          );
+        case "polyline":
+          if (!showLines) return null;
+          return (
+            <React.Fragment key={fKey}>
+              <Polyline
+                key={`${fKey}-line`}
+                coordinates={feature.coords}
+                tappable={true}
+                strokeWidth={isSelected ? 6 : 4}
+                strokeColor={isSelected ? "#0055FF" : "#FF0000"}
+                onPress={() => selectFeature(feature)}
+              />
+              {feature.coords.map((coord, coordIdx) => (
+                <Marker
+                  key={`${fKey}-v${coordIdx}`}
+                  coordinate={coord}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  stopPropagation={true}
+                  tracksViewChanges={false}
+                  onPress={() => selectFeature(feature)}
+                >
+                  <View style={styles.vertexMarker} />
+                </Marker>
+              ))}
+              {feature.imageUri && feature.coords[0] && (
+                <Marker
+                  key={`${fKey}-img`}
+                  coordinate={feature.coords[0]}
+                  stopPropagation={true}
+                  onPress={() => selectFeature(feature)}
+                  anchor={{ x: 0.5, y: 1 }}
+                  tracksViewChanges={!imageLoaded[fKey]}
+                >
+                  <View style={[{ alignItems: "center" }, { opacity: isSelected ? 0 : 1 }]}>
+                    <View style={styles.thumbnailContainer}>
+                      <Image
+                        source={{ uri: feature.imageUri }}
+                        style={styles.thumbnail}
+                        onLoad={() => setImageLoaded(prev => ({ ...prev, [fKey]: true }))}
+                      />
+                      <View style={styles.thumbnailArrow} />
+                    </View>
+                    <Ionicons name="location" size={32} color={theme.colors.primary} />
+                  </View>
+                </Marker>
+              )}
+            </React.Fragment>
+          );
+        case "polygon":
+          if (!showPolygons) return null;
+          return (
+            <React.Fragment key={fKey}>
+              <Polygon
+                key={`${fKey}-poly`}
+                coordinates={feature.coords}
+                tappable={true}
+                onPress={() => selectFeature(feature)}
+                strokeWidth={isSelected ? 5 : 3}
+                strokeColor={isSelected ? "#0055FF" : "#AA0000"}
+                fillColor={isSelected ? "rgba(0,85,255,0.3)" : "rgba(255,0,0,0.3)"}
+              />
+              {feature.coords.map((coord, coordIdx) => (
+                <Marker
+                  key={`${fKey}-v${coordIdx}`}
+                  coordinate={coord}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  stopPropagation={true}
+                  tracksViewChanges={false}
+                  onPress={() => selectFeature(feature)}
+                >
+                  <View style={styles.vertexMarker} />
+                </Marker>
+              ))}
+              {feature.imageUri && feature.coords[0] && (
+                <Marker
+                  key={`${fKey}-img`}
+                  coordinate={feature.coords[0]}
+                  stopPropagation={true}
+                  onPress={() => selectFeature(feature)}
+                  anchor={{ x: 0.5, y: 1 }}
+                  tracksViewChanges={!imageLoaded[fKey]}
+                >
+                  <View style={[{ alignItems: "center" }, { opacity: isSelected ? 0 : 1 }]}>
+                    <View style={styles.thumbnailContainer}>
+                      <Image
+                        source={{ uri: feature.imageUri }}
+                        style={styles.thumbnail}
+                        onLoad={() => setImageLoaded(prev => ({ ...prev, [fKey]: true }))}
+                      />
+                      <View style={styles.thumbnailArrow} />
+                    </View>
+                    <Ionicons name="location" size={32} color={theme.colors.primary} />
+                  </View>
+                </Marker>
+              )}
+            </React.Fragment>
+          );
+      }
+    });
+  }, [features, selectedFeatureId, showMarkers, showLines, showPolygons, imageLoaded, selectFeature, theme]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
@@ -401,195 +653,130 @@ export default function Map() {
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* Map lives OUTSIDE the ScrollView so Android's scroll gesture handler
-            does not intercept long-press events before MapView receives them. */}
-        <Surface style={[styles.mapSurface, { height: screenHeight * 0.52 }]}>
-          <View style={styles.mapClip}>
-            {region ? (
-              <MapView
-                style={[styles.map, { marginBottom: marginOffset }]}
-                ref={mapRef}
-                initialRegion={region}
-                mapType={mapType}
-                onPress={() => { if (!justSelectedRef.current && !justLongPressedRef.current) selectFeature(null); }}
-                onLongPress={pushToQueue}
-                onRegionChangeComplete={(r) => storage.maps.setRegion(id, r)}
-                showsUserLocation={useLocationEnabled}
-              >
-                {queue.map((item, idx) => (
-                  <Marker
-                    key={`queue-marker-${item.id}`}
-                    coordinate={item.renderCoord ?? item.coord}
-                    draggable
-                    tracksViewChanges={tracksMap[item.id] ?? true}
-                    onDragEnd={async (e) => {
-                      const newRenderCoord = e.nativeEvent.coordinate;
-                      const map = mapRef.current as any;
-                      let newRealCoord: LatLng = newRenderCoord;
-                      if (map?.pointForCoordinate && map?.coordinateForPoint) {
-                        try {
-                          const pt = await map.pointForCoordinate(newRenderCoord);
-                          const realPoint = { x: pt.x, y: pt.y + VISUAL_PIN_OFFSET_PX };
-                          newRealCoord = await map.coordinateForPoint(realPoint);
-                        } catch (err) {
-                          console.warn("Could not convert dragged render coord to real coord", err);
-                        }
-                      }
-                      setQueue(prev => prev.map(q => q.id === item.id ? { ...q, coord: newRealCoord, renderCoord: newRenderCoord } : q));
-                    }}
-                  >
-                    <View style={styles.silhouetteContainer}>
-                      <View style={[styles.silhouetteRing, { borderColor: theme.colors.primary, opacity: 0.4 }]} />
-                      <Ionicons name="location" size={60} color={theme.colors.primary} style={styles.silhouetteFill} />
-                      <Ionicons name="location-outline" size={60} color={theme.colors.primary} style={styles.silhouetteOutline} />
-                      <View style={[styles.silhouetteDot, { backgroundColor: theme.colors.primary }]} />
-                    </View>
-                  </Marker>
-                ))}
-                {queue.length > 1 &&
-                  <Polyline
-                    key={`queue-polyline-${queue.length}`}
-                    strokeWidth={4}
-                    lineCap="round"
-                    lineJoin="round"
-                    strokeColor="#FF0000"
-                    coordinates={queue.map(q => q.coord)}
+        {!isSearchFocused && (
+          <>
+            <View style={styles.tabContainer}>
+              <SegmentedButtons
+                value={activeTab}
+                onValueChange={(val) => setActiveTab(val as "map" | "list")}
+                buttons={[
+                  {
+                    value: "map",
+                    label: "Mapa",
+                    icon: "map",
+                  },
+                  {
+                    value: "list",
+                    label: `Elementos (${features.length})`,
+                    icon: "format-list-bulleted",
+                  },
+                ]}
+                style={styles.segmentedButtons}
+              />
+            </View>
+
+            {/* Map lives OUTSIDE the ScrollView so Android's scroll gesture handler
+                does not intercept long-press events before MapView receives them. */}
+            <Surface style={[styles.mapSurface, { height: screenHeight * 0.44 }]}>
+              <View style={styles.mapClip}>
+                {activeTab === "list" ? (
+                  <MapElements
+                    features={features}
+                    selectedFeatureId={selectedFeatureId}
+                    onSelectItem={handleSelectItem}
                   />
-                }
-                {features.map((feature, idx) => {
-                  switch (feature.type) {
-                    case "marker":
-                      if (!showMarkers) return null;
-                      const isSelected = selectedFeature === feature;
-                      const coordKey = `${feature.coords.latitude}-${feature.coords.longitude}`;
-                      const isLoaded = loadedImages[coordKey] || false;
-                      if (feature.imageUri && !isSelected) {
-                        return (
-                          <Marker
-                            key={`feature-${idx}-${feature.type}-${coordKey}-${feature.imageUri ? "has-img" : "no-img"}-${isLoaded ? "loaded" : "loading"}`}
-                            coordinate={feature.coords}
-                            stopPropagation={true}
-                            onPress={() => selectFeature(feature)}
-                            anchor={{ x: 0.5, y: 1 }}
-                          >
-                            <View style={{ alignItems: "center" }}>
-                              <View style={styles.thumbnailContainer}>
-                                <Image
-                                  source={{ uri: feature.imageUri }}
-                                  style={styles.thumbnail}
-                                  onLoad={() => {
-                                    if (!loadedImages[coordKey]) {
-                                      setLoadedImages(prev => ({ ...prev, [coordKey]: true }));
-                                    }
-                                  }}
-                                />
-                                <View style={styles.thumbnailArrow} />
-                              </View>
-                              <Ionicons name="location" size={32} color={theme.colors.primary} />
-                            </View>
-                          </Marker>
-                        );
-                      }
-                      return (
-                        <Marker
-                          key={`feature-${idx}-${feature.type}-${coordKey}`}
-                          coordinate={feature.coords}
-                          stopPropagation={true}
-                          onPress={() => selectFeature(feature)}
-                        />
-                      );
-                    case "polyline":
-                      if (!showLines) return null;
-                      return (
-                        <React.Fragment key={`polyline-group-${idx}`}>
-                          <Polyline
-                            key={`feature-${idx}-${feature.type}-${feature.coords.length}-${feature.coords[0]?.latitude}-${feature.coords[0]?.longitude}`}
-                            coordinates={feature.coords}
-                            tappable={true}
-                            strokeWidth={selectedFeature === feature ? 6 : 4}
-                            strokeColor={selectedFeature === feature ? "#0055FF" : "#FF0000"}
-                            onPress={() => selectFeature(feature)}
-                          />
-                          {feature.coords.map((coord, coordIdx) => (
-                            <Marker
-                              key={`polyline-${idx}-vertex-${coordIdx}`}
-                              coordinate={coord}
-                              anchor={{ x: 0.5, y: 0.5 }}
-                              stopPropagation={true}
-                            >
-                              <View style={styles.vertexMarker} />
-                            </Marker>
-                          ))}
-                        </React.Fragment>
-                      );
-                    case "polygon":
-                      if (!showPolygons) return null;
-                      return (
-                        <React.Fragment key={`polygon-group-${idx}`}>
-                          <Polygon
-                            key={`feature-${idx}-${feature.type}-${feature.coords.length}-${feature.coords[0]?.latitude}-${feature.coords[0]?.longitude}`}
-                            coordinates={feature.coords}
-                            tappable={true}
-                            onPress={() => selectFeature(feature)}
-                            strokeWidth={selectedFeature === feature ? 5 : 3}
-                            strokeColor={selectedFeature === feature ? "#0055FF" : "#AA0000"}
-                            fillColor={selectedFeature === feature ? "rgba(0,85,255,0.3)" : "rgba(255,0,0,0.3)"}
-                          />
-                          {feature.coords.map((coord, coordIdx) => (
-                            <Marker
-                              key={`polygon-${idx}-vertex-${coordIdx}`}
-                              coordinate={coord}
-                              anchor={{ x: 0.5, y: 0.5 }}
-                              stopPropagation={true}
-                            >
-                              <View style={styles.vertexMarker} />
-                            </Marker>
-                          ))}
-                        </React.Fragment>
-                      );
-                  }
-                })}
-                {selectedFeature && (
-                  <Marker
-                    key={`nav-bubble-${selectedFeature.type}-${selectedFeature.desc}-${selectedFeature.type === "marker"
-                        ? selectedFeature.coords.latitude
-                        : selectedFeature.coords[0]?.latitude
-                      }`}
-                    coordinate={
-                      selectedFeature.type === "marker"
-                        ? selectedFeature.coords
-                        : selectedFeature.coords[0]
-                    }
-                    stopPropagation={true}
-                    anchor={{ x: 0.5, y: 1 }}
+                ) : region ? (
+                  <MapView
+                    style={styles.map}
+                    ref={mapRef}
+                    initialRegion={region}
+                    mapType={mapType}
+                    onPress={() => { if (!justSelectedRef.current && !justLongPressedRef.current) selectFeature(null); }}
+                    onLongPress={pushToQueue}
+                    onRegionChangeComplete={(r) => storage.maps.setRegion(id, r)}
+                    showsUserLocation={useLocationEnabled}
                   >
-                    <View style={{ alignItems: "center" }}>
-                      <View style={styles.calloutBubble}>
-                        <View style={styles.calloutRow}>
-                          <Text style={styles.calloutText} onPress={openEditModal}>
-                            {selectedFeature.desc || "Toca para agregar descripción..."}
-                          </Text>
-                          <View style={styles.calloutDivider} />
-                          <Ionicons
-                            name="navigate"
-                            size={18}
-                            color={theme.colors.primary}
-                            onPress={handleNavigationPress}
-                            style={styles.calloutNavIcon}
-                          />
+                    {queue.map((item, idx) => (
+                      <Marker
+                        key={`queue-marker-${item.id}`}
+                        coordinate={item.renderCoord ?? item.coord}
+                        draggable
+                        tracksViewChanges={tracksMap[item.id] ?? true}
+                        onDragEnd={async (e) => {
+                          const newRenderCoord = e.nativeEvent.coordinate;
+                          const map = mapRef.current as any;
+                          let newRealCoord: LatLng = newRenderCoord;
+                          if (map?.pointForCoordinate && map?.coordinateForPoint) {
+                            try {
+                              const pt = await map.pointForCoordinate(newRenderCoord);
+                              const realPoint = { x: pt.x, y: pt.y + VISUAL_PIN_OFFSET_PX };
+                              newRealCoord = await map.coordinateForPoint(realPoint);
+                            } catch (err) {
+                              console.warn("Could not convert dragged render coord to real coord", err);
+                            }
+                          }
+                          setQueue(prev => prev.map(q => q.id === item.id ? { ...q, coord: newRealCoord, renderCoord: newRenderCoord } : q));
+                        }}
+                      >
+                        <View style={styles.silhouetteContainer}>
+                          <View style={[styles.silhouetteRing, { borderColor: theme.colors.primary, opacity: 0.4 }]} />
+                          <Ionicons name="location" size={60} color={theme.colors.primary} style={styles.silhouetteFill} />
+                          <Ionicons name="location-outline" size={60} color={theme.colors.primary} style={styles.silhouetteOutline} />
+                          <View style={[styles.silhouetteDot, { backgroundColor: theme.colors.primary }]} />
                         </View>
-                      </View>
-                      <View style={styles.calloutArrow} />
-                      <View style={{ height: selectedFeature.type === "marker" ? 34 : 10 }} />
-                    </View>
-                  </Marker>
+                      </Marker>
+                    ))}
+                    {queue.length > 1 &&
+                      <Polyline
+                        key="queue-polyline"
+                        strokeWidth={4}
+                        lineCap="round"
+                        lineJoin="round"
+                        strokeColor="#FF0000"
+                        coordinates={queue.map(q => q.coord)}
+                      />
+                    }
+                    {renderedFeatures}
+                    {selectedFeature && (
+                      <Marker
+                        key={`nav-bubble-${selectedFeatureId}`}
+                        coordinate={
+                          selectedFeature.type === "marker"
+                            ? selectedFeature.coords
+                            : selectedFeature.coords[0]
+                        }
+                        stopPropagation={true}
+                        anchor={{ x: 0.5, y: 1 }}
+                      >
+                        <View style={{ alignItems: "center" }}>
+                          <View style={styles.calloutBubble}>
+                            <View style={styles.calloutRow}>
+                              <Text style={styles.calloutText} onPress={openEditModal}>
+                                {selectedFeature.desc || "Toca para agregar descripción..."}
+                              </Text>
+                              <View style={styles.calloutDivider} />
+                              <Ionicons
+                                name="navigate"
+                                size={18}
+                                color={theme.colors.primary}
+                                onPress={handleNavigationPress}
+                                style={styles.calloutNavIcon}
+                              />
+                            </View>
+                          </View>
+                          <View style={styles.calloutArrow} />
+                          <View style={{ height: selectedFeature.type === "marker" ? 34 : 10 }} />
+                        </View>
+                      </Marker>
+                    )}
+                  </MapView>
+                ) : (
+                  <View style={styles.map} />
                 )}
-              </MapView>
-            ) : (
-              <View style={styles.map} />
-            )}
-          </View>
-        </Surface>
+              </View>
+            </Surface>
+          </>
+        )}
 
         {/* Controls panel inside its own ScrollView */}
         <ScrollView
@@ -609,6 +796,14 @@ export default function Map() {
               onSubmitEditing={handleSearch}
               loading={isSearching}
               style={styles.searchbar}
+              onFocus={() => setIsSearchFocused(true)}
+              icon={isSearchFocused ? "arrow-left" : "magnify"}
+              onIconPress={() => {
+                if (isSearchFocused) {
+                  Keyboard.dismiss();
+                  setIsSearchFocused(false);
+                }
+              }}
             />
 
             {/* Search results — push buttons down when open */}
@@ -627,22 +822,26 @@ export default function Map() {
             )}
 
             {/* Action buttons */}
-            <Surface elevation={2} style={styles.controlsRow}>
-              <Button style={styles.button} onPress={buildFeature}>Ok</Button>
-              <Button style={styles.button} onPress={popFromQueue} onLongPress={clearQueue}>Atras</Button>
-              <Button style={styles.button} onPress={deleteFeature}>Borrar</Button>
-              <Button style={styles.button} onPress={centerLocation} disabled={!useLocationEnabled}>Centrar</Button>
-            </Surface>
+            {!isSearchFocused && (
+              <Surface elevation={2} style={styles.controlsRow}>
+                <Button style={styles.button} onPress={buildFeature}>Ok</Button>
+                <Button style={styles.button} onPress={popFromQueue} onLongPress={clearQueue}>Atras</Button>
+                <Button style={styles.button} onPress={deleteFeature}>Borrar</Button>
+                <Button style={styles.button} onPress={centerLocation} disabled={!useLocationEnabled}>Centrar</Button>
+              </Surface>
+            )}
 
             {/* Description */}
-            <Surface
-              style={styles.descriptionView}
-              onTouchEnd={selectedFeature ? openEditModal : undefined}
-            >
-              <Text style={styles.descriptionText}>
-                {selectedFeature ? (text || "Toca para agregar descripción...") : "No hay feature seleccionado"}
-              </Text>
-            </Surface>
+            {!isSearchFocused && (
+              <Surface
+                style={styles.descriptionView}
+                onTouchEnd={selectedFeature ? openEditModal : undefined}
+              >
+                <Text style={styles.descriptionText}>
+                  {selectedFeature ? (text || "Toca para agregar descripción...") : "No hay feature seleccionado"}
+                </Text>
+              </Surface>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -745,261 +944,3 @@ function isClosed(points: LatLng[]): boolean {
   const gapDiagonal = distance(points[0], points[points.length - 1]);
   return gapDiagonal <= THRESHOLD * bboxDiagonal;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
-  // ── Body ──
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  body: {
-    flex: 1,
-  },
-  bodyContent: {
-    paddingBottom: 24,
-  },
-
-  // ── Map ──
-  mapSurface: {
-    margin: 12,
-    borderRadius: 12,
-  },
-  mapClip: {
-    flex: 1,
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  map: {
-    flex: 1,
-  },
-
-  // ── Controls ──
-  controls: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-  },
-  searchbar: {
-    marginBottom: 8,
-    borderRadius: 8,
-  },
-  searchResults: {
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  controlsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 8,
-    borderRadius: 8,
-  },
-  button: {
-    marginTop: 3,
-    marginHorizontal: 3,
-    minWidth: 80,
-  },
-  descriptionView: {
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-    minHeight: 60,
-  },
-  descriptionText: {
-    fontSize: 14,
-  },
-
-  // ── Modal ──
-  modalContent: {
-    margin: 20,
-    borderRadius: 12,
-    padding: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalHeading: {
-    textAlign: "center",
-    marginBottom: 20,
-    fontWeight: "600",
-  },
-  modalTextInput: {
-    width: "100%",
-    minHeight: 120,
-    marginBottom: 16,
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
-    width: "100%",
-  },
-  modalButton: {
-    minWidth: 100,
-  },
-  navMarkerContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  modalImageContainer: {
-    alignItems: "center",
-    marginBottom: 16,
-    width: "100%",
-  },
-  modalImagePreview: {
-    width: 120,
-    height: 120,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  modalImageRemoveBtn: {
-    borderColor: "#D32F2F",
-  },
-  modalImagePickBtn: {
-    marginBottom: 16,
-    width: "100%",
-  },
-  vertexMarker: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#FF9800",
-    borderWidth: 1.5,
-    borderColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 1,
-    elevation: 2,
-  },
-  silhouetteContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 64,
-    height: 64,
-  },
-  silhouetteFill: {
-    opacity: 0.35,
-    position: "absolute",
-    bottom: 0,
-  },
-  silhouetteOutline: {
-    position: "absolute",
-    bottom: 0,
-  },
-  silhouetteRing: {
-    position: "absolute",
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1.5,
-    backgroundColor: "rgba(0, 0, 0, 0.05)",
-    bottom: -8,
-  },
-  silhouetteDot: {
-    position: "absolute",
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    bottom: 0,
-  },
-  thumbnailContainer: {
-    padding: 2,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    marginBottom: -2,
-  },
-  thumbnail: {
-    width: 44,
-    height: 44,
-    borderRadius: 4,
-  },
-  thumbnailArrow: {
-    width: 0,
-    height: 0,
-    backgroundColor: "transparent",
-    borderStyle: "solid",
-    borderLeftWidth: 5,
-    borderRightWidth: 5,
-    borderBottomWidth: 0,
-    borderTopWidth: 5,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: "#FFFFFF",
-    alignSelf: "center",
-    marginBottom: -5,
-  },
-  calloutBubble: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: -4,
-  },
-  calloutRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    maxWidth: 220,
-  },
-  calloutText: {
-    fontSize: 14,
-    color: "#333333",
-    flexShrink: 1,
-    fontWeight: "500",
-  },
-  calloutDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: "#E0E0E0",
-    marginHorizontal: 8,
-  },
-  calloutNavIcon: {
-    padding: 4,
-  },
-  calloutArrow: {
-    width: 0,
-    height: 0,
-    backgroundColor: "transparent",
-    borderStyle: "solid",
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderBottomWidth: 0,
-    borderTopWidth: 6,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: "#FFFFFF",
-    alignSelf: "center",
-    marginBottom: -6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-  },
-});

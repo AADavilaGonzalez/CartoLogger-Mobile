@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Text, SegmentedButtons, Button, useTheme } from "react-native-paper";
-import { View, StyleSheet, Alert } from "react-native";
+import { View, Alert } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { styles } from "@/styles/settings.styles";
 
 import { useStorage } from "@/hooks/use-storage";
 import { useThemeContext } from "@/context/theme-context";
@@ -161,40 +162,3 @@ export default function MapConfig() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  container: {
-    padding: 16,
-    gap: 16,
-    flex: 1,
-  },
-  settingGroup: {
-    marginBottom: 16,
-  },
-  buttons: {
-    marginTop: 8,
-  },
-  clearGroup: {
-    marginTop: 24,
-    alignItems: "center",
-  },
-  clearButton: {
-    width: "100%",
-    borderRadius: 8,
-    paddingVertical: 4,
-  },
-});

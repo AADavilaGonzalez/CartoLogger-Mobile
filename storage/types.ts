@@ -8,6 +8,7 @@ export type CreateMapDTO = {
 export type MapDTO = CreateMapDTO & { id: number }
 
 type MarkerDTO = {
+  id?: string,
   type: "marker",
   desc: string,
   coords: LatLng,
@@ -15,6 +16,7 @@ type MarkerDTO = {
 };
 
 type PolylineDTO = {
+  id?: string,
   type: "polyline",
   desc: string,
   coords: LatLng[],
@@ -22,6 +24,7 @@ type PolylineDTO = {
 };
 
 type PolygonDTO = {
+  id?: string,
   type: "polygon",
   desc: string,
   coords: LatLng[],

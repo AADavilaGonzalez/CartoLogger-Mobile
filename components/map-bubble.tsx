@@ -1,7 +1,8 @@
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 import { Surface, Text, IconButton, TouchableRipple, useTheme } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import { MapDTO } from "@/storage/types";
+import { styles } from "@/styles/map-bubble.styles";
 
 type MapBubbleProps = {
   map: MapDTO
@@ -20,7 +21,7 @@ export function MapBubble({
     if (str.length <= length) {
       return str;
     }
-    return str.substring(0, length).trim() + "...";
+    return str.substring(0, length) + "...";
   };
 
   return (
@@ -39,7 +40,6 @@ export function MapBubble({
           onPress={onPress}
           onLongPress={onLongPress}
           style={styles.ripple}
-          rippleColor={isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)"}
         >
           <View style={styles.contentRow}>
             {/* Map Icon Avatar */}
@@ -47,96 +47,52 @@ export function MapBubble({
               style={[
                 styles.avatar,
                 {
-                  backgroundColor: isDark ? "#1E2B3E" : "#E7F3FF",
+                  backgroundColor: isDark ? "#2A2A2A" : "#E8F0FE",
                 },
               ]}
             >
               <Ionicons
                 name="map"
                 size={24}
-                color={isDark ? "#2D88FF" : "#1877F2"}
+                color={theme.colors.primary}
               />
             </View>
 
-            {/* Text Info */}
+            {/* Content Text */}
             <View style={styles.textContainer}>
               <Text
-                variant="titleMedium"
-                style={[styles.title, { color: theme.colors.onSurface }]}
+                style={[
+                  styles.title,
+                  {
+                    color: theme.colors.onSurface,
+                  },
+                ]}
               >
-                {map.title}
+                {trim(map.title, 24)}
               </Text>
               <Text
-                variant="bodyMedium"
                 style={[
                   styles.description,
-                  { color: theme.colors.onSurfaceVariant },
+                  {
+                    color: theme.colors.onSurfaceVariant,
+                  },
                 ]}
-                numberOfLines={2}
               >
-                {map.description ? trim(map.description, 70) : "Sin descripción"}
+                {trim(map.description, 40)}
               </Text>
             </View>
 
-            {/* Dot menu for Actions */}
-            {onEdit && (
-              <IconButton
-                icon="dots-horizontal"
-                size={22}
-                onPress={onEdit}
-                iconColor={theme.colors.onSurfaceVariant}
-                style={styles.actionButton}
-              />
-            )}
+            {/* Edit Button */}
+            <IconButton
+              icon="pencil-outline"
+              size={20}
+              iconColor={theme.colors.primary}
+              style={styles.actionButton}
+              onPress={onEdit}
+            />
           </View>
         </TouchableRipple>
       </View>
     </Surface>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    marginHorizontal: 16,
-    marginVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  innerContainer: {
-    borderRadius: 11,
-    overflow: "hidden",
-  },
-  ripple: {
-    padding: 12,
-  },
-  contentRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  textContainer: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  title: {
-    fontWeight: "700",
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  description: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 2,
-  },
-  actionButton: {
-    margin: 0,
-    marginRight: -4,
-  },
-});

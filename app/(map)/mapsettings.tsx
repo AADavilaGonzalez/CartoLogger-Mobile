@@ -1,10 +1,11 @@
 import { useState, useCallback } from "react";
-import { View, StyleSheet, Alert, Share, ScrollView } from "react-native";
+import { View, Alert, Share, ScrollView } from "react-native";
 import { Text, TextInput, Button, Switch, useTheme, Surface, Divider } from "react-native-paper";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useStorage } from "@/hooks/use-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { getActiveMapId } from "@/storage/active-map";
+import { styles } from "@/styles/mapsettings.styles";
 
 export default function MapSettings() {
   const theme = useTheme();
@@ -165,7 +166,7 @@ export default function MapSettings() {
       {/* Layer Toggles Section */}
       <Surface elevation={1} style={styles.card}>
         <Text variant="titleMedium" style={styles.cardTitle}>Capas de Visualización</Text>
-        
+
         <View style={styles.row}>
           <View style={styles.rowLabelGroup}>
             <Ionicons name="location" size={20} color={theme.colors.primary} />
@@ -205,7 +206,7 @@ export default function MapSettings() {
       {/* Actions Section */}
       <Surface elevation={1} style={styles.card}>
         <Text variant="titleMedium" style={styles.cardTitle}>Acciones</Text>
-        
+
         <Button
           mode="outlined"
           onPress={handleExport}
@@ -226,57 +227,8 @@ export default function MapSettings() {
           Limpiar Lienzo (Borrar Dibujos)
         </Button>
       </Surface>
-      
+
       <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  header: {
-    fontWeight: "bold",
-    marginBottom: 20,
-    marginTop: 8,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  input: {
-    marginBottom: 12,
-  },
-  saveBtn: {
-    marginTop: 4,
-    borderRadius: 8,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  rowLabelGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  rowLabel: {
-    fontSize: 15,
-  },
-  divider: {
-    marginVertical: 4,
-  },
-  actionBtn: {
-    marginVertical: 6,
-    borderRadius: 8,
-  },
-});

@@ -1,0 +1,267 @@
+import { StyleSheet } from "react-native";
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  tabContainer: {
+    paddingHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  segmentedButtons: {
+    height: 40,
+  },
+
+  // ── Body ──
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  body: {
+    flex: 1,
+  },
+  bodyContent: {
+    paddingBottom: 24,
+  },
+
+  // ── Map ──
+  mapSurface: {
+    margin: 12,
+    borderRadius: 12,
+  },
+  mapClip: {
+    flex: 1,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  map: {
+    flex: 1,
+  },
+
+  // ── Controls ──
+  controls: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  searchbar: {
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  searchResults: {
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  controlsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 8,
+    borderRadius: 8,
+  },
+  button: {
+    marginTop: 3,
+    marginHorizontal: 3,
+    minWidth: 80,
+  },
+  descriptionView: {
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    minHeight: 60,
+  },
+  descriptionText: {
+    fontSize: 14,
+  },
+
+  // ── Modal ──
+  modalContent: {
+    margin: 20,
+    borderRadius: 12,
+    padding: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalHeading: {
+    textAlign: "center",
+    marginBottom: 20,
+    fontWeight: "600",
+  },
+  modalTextInput: {
+    width: "100%",
+    minHeight: 120,
+    marginBottom: 16,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+    width: "100%",
+  },
+  modalButton: {
+    minWidth: 100,
+  },
+  navMarkerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  modalImageContainer: {
+    alignItems: "center",
+    marginBottom: 16,
+    width: "100%",
+  },
+  modalImagePreview: {
+    width: 120,
+    height: 120,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  modalImageRemoveBtn: {
+    borderColor: "#D32F2F",
+  },
+  modalImagePickBtn: {
+    marginBottom: 16,
+    width: "100%",
+  },
+  vertexMarker: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FF9800",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 1,
+    elevation: 2,
+  },
+  silhouetteContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 64,
+    height: 64,
+  },
+  silhouetteFill: {
+    opacity: 0.35,
+    position: "absolute",
+    bottom: 0,
+  },
+  silhouetteOutline: {
+    position: "absolute",
+    bottom: 0,
+  },
+  silhouetteRing: {
+    position: "absolute",
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    bottom: -8,
+  },
+  silhouetteDot: {
+    position: "absolute",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    bottom: 0,
+  },
+  thumbnailContainer: {
+    padding: 2,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    marginBottom: -2,
+  },
+  thumbnail: {
+    width: 44,
+    height: 44,
+    borderRadius: 4,
+  },
+  thumbnailArrow: {
+    width: 0,
+    height: 0,
+    backgroundColor: "transparent",
+    borderStyle: "solid",
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 0,
+    borderTopWidth: 5,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#FFFFFF",
+    alignSelf: "center",
+    marginBottom: -5,
+  },
+  calloutBubble: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: -4,
+  },
+  calloutRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    maxWidth: 220,
+  },
+  calloutText: {
+    fontSize: 14,
+    color: "#333333",
+    flexShrink: 1,
+    fontWeight: "500",
+  },
+  calloutDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: "#E0E0E0",
+    marginHorizontal: 8,
+  },
+  calloutNavIcon: {
+    padding: 4,
+  },
+  calloutArrow: {
+    width: 0,
+    height: 0,
+    backgroundColor: "transparent",
+    borderStyle: "solid",
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 0,
+    borderTopWidth: 6,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#FFFFFF",
+    alignSelf: "center",
+    marginBottom: -6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+  },
+});

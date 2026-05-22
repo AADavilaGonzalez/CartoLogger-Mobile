@@ -1,6 +1,7 @@
 
-import { View, StyleSheet } from "react-native";
+import { View } from "react-native";
 import { Portal, Modal, Text, Button, useTheme } from "react-native-paper";
+import { styles } from "@/styles/decision-modal.styles";
 
 type MapModalProps = {
   heading: string,
@@ -9,7 +10,7 @@ type MapModalProps = {
   visible: boolean,
 }
 
-export function DecisionModal({ heading, onAccept, onCancel, visible}: MapModalProps) {
+export function DecisionModal({ heading, onAccept, onCancel, visible }: MapModalProps) {
   const theme = useTheme();
 
   return (
@@ -17,7 +18,7 @@ export function DecisionModal({ heading, onAccept, onCancel, visible}: MapModalP
       <Modal
         visible={visible} dismissable={false} contentContainerStyle={
           [styles.modalContent, { backgroundColor: theme.colors.background }]
-      }>
+        }>
         <Text variant="headlineMedium" style={
           [styles.heading, { color: theme.colors.onBackground }]
         }>{heading}</Text>
@@ -29,27 +30,3 @@ export function DecisionModal({ heading, onAccept, onCancel, visible}: MapModalP
     </Portal>
   );
 }
-
-const styles = StyleSheet.create({
-  modalContent: {
-    margin: 20,
-    borderRadius: 12,
-    padding: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heading: {
-    textAlign: "center",
-    marginBottom: 20,
-    fontWeight: "600",
-  },
-  buttons: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
-    width: "100%",
-  },
-  button: {
-    minWidth: 100,
-  }
-})
