@@ -18,8 +18,11 @@ export function ThemeSetupComponent() {
     ...paperTheme,
     colors: {
       ...paperTheme.colors,
-      primary: "#730CEB",
-      secondary: "#6111BD",
+      primary: isDark ? "#2D88FF" : "#1877F2",
+      secondary: isDark ? "#2D88FF" : "#1877F2",
+      background: isDark ? "#18191A" : "#F0F2F5",
+      surface: isDark ? "#242526" : "#FFFFFF",
+      outline: isDark ? "#3A3B3C" : "#E4E6EB",
     }
   }
 

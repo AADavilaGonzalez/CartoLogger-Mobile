@@ -24,6 +24,12 @@ type NominatimResult = {
   display_name: string;
 };
 
+type QueueItem = {
+  id: string;
+  coord: LatLng; // the true geographic coordinate (used for storage)
+  renderCoord?: LatLng; // optional coordinate used only for rendering the marker so the visual tip aligns with the true coord
+};
+
 export default function Map() {
   const params = useLocalSearchParams();
   const id = parseInt(params.id as string);
@@ -38,8 +44,10 @@ export default function Map() {
 
   const [features, setFeatures] = useState<FeatureDTO[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<FeatureDTO | null>(null);
-  const [queue, setQueue] = useState<LatLng[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [tracksMap, setTracksMap] = useState<Record<string, boolean>>({});
   const [marginOffset, setMarginOffset] = useState(0);
+  const VISUAL_PIN_OFFSET_PX = 24; // pixels to shift the rendered marker up so its tip matches the real coordinate
 
   useEffect(() => {
     if (id && !isNaN(id)) {
@@ -169,16 +177,39 @@ export default function Map() {
     }
   };
 
-  const pushToQueue = (e: LongPressEvent) => {
+  const pushToQueue = async (e: LongPressEvent) => {
     justLongPressedRef.current = true;
     setTimeout(() => { justLongPressedRef.current = false; }, 300);
     const coords = e.nativeEvent.coordinate;
-    setQueue(prev => [...prev, coords]);
+    const id = `${Date.now()}-${Math.random()}`;
+
+    // Compute a render offset so the visual tip of the marker (the small dot)
+    // aligns with the real coordinate. We convert coord -> screen point, shift
+    // the Y by VISUAL_PIN_OFFSET_PX, then convert back to a lat/lng for rendering.
+    let renderCoord: LatLng | undefined = undefined;
+    const map = mapRef.current as any;
+    if (map?.pointForCoordinate && map?.coordinateForPoint) {
+      try {
+        const pt = await map.pointForCoordinate(coords);
+        const renderPoint = { x: pt.x, y: pt.y - VISUAL_PIN_OFFSET_PX };
+        renderCoord = await map.coordinateForPoint(renderPoint);
+      } catch (err) {
+        console.warn("Could not compute render coordinate", err);
+      }
+    }
+
+    setQueue(prev => [...prev, { id, coord: coords, renderCoord }]);
+    setTracksMap(prev => ({ ...prev, [id]: true }));
+    setTimeout(() => {
+      setTracksMap(prev => ({ ...prev, [id]: false }));
+    }, 100);
   };
 
-  const popFromQueue = () => { setQueue(queue.slice(0, -1)); };
+  const popFromQueue = () => { setQueue(prev => prev.slice(0, -1)); };
 
   const clearQueue = () => { setQueue([]); };
+
+  
 
   const buildFeature = () => {
     if (queue.length === 0) { return; }
@@ -188,21 +219,21 @@ export default function Map() {
       newFeature = {
         type: "marker",
         desc: "",
-        coords: queue[0],
+        coords: queue[0].coord,
       };
     }
-    else if (queue.length <= 3 || !isClosed(queue)) {
+    else if (queue.length <= 3 || !isClosed(queue.map(q => q.coord))) {
       newFeature = {
         type: "polyline",
         desc: "",
-        coords: [...queue],
+        coords: queue.map(q => q.coord),
       };
     }
     else {
       newFeature = {
         type: "polygon",
         desc: "",
-        coords: queue.slice(0, -1),
+        coords: queue.slice(0, -1).map(q => q.coord),
       };
     }
 
@@ -385,8 +416,35 @@ export default function Map() {
                 onRegionChangeComplete={(r) => storage.maps.setRegion(id, r)}
                 showsUserLocation={useLocationEnabled}
               >
-                {queue.map((coord, idx) => (
-                  <Marker key={`queue-${queue.length}-${idx}-${coord.latitude}-${coord.longitude}`} coordinate={coord} pinColor="#2196F3" />
+                {queue.map((item, idx) => (
+                  <Marker
+                    key={`queue-marker-${item.id}`}
+                    coordinate={item.renderCoord ?? item.coord}
+                    draggable
+                    tracksViewChanges={tracksMap[item.id] ?? true}
+                    onDragEnd={async (e) => {
+                      const newRenderCoord = e.nativeEvent.coordinate;
+                      const map = mapRef.current as any;
+                      let newRealCoord: LatLng = newRenderCoord;
+                      if (map?.pointForCoordinate && map?.coordinateForPoint) {
+                        try {
+                          const pt = await map.pointForCoordinate(newRenderCoord);
+                          const realPoint = { x: pt.x, y: pt.y + VISUAL_PIN_OFFSET_PX };
+                          newRealCoord = await map.coordinateForPoint(realPoint);
+                        } catch (err) {
+                          console.warn("Could not convert dragged render coord to real coord", err);
+                        }
+                      }
+                      setQueue(prev => prev.map(q => q.id === item.id ? { ...q, coord: newRealCoord, renderCoord: newRenderCoord } : q));
+                    }}
+                  >
+                    <View style={styles.silhouetteContainer}>
+                      <View style={[styles.silhouetteRing, { borderColor: theme.colors.primary, opacity: 0.4 }]} />
+                      <Ionicons name="location" size={60} color={theme.colors.primary} style={styles.silhouetteFill} />
+                      <Ionicons name="location-outline" size={60} color={theme.colors.primary} style={styles.silhouetteOutline} />
+                      <View style={[styles.silhouetteDot, { backgroundColor: theme.colors.primary }]} />
+                    </View>
+                  </Marker>
                 ))}
                 {queue.length > 1 &&
                   <Polyline
@@ -395,7 +453,7 @@ export default function Map() {
                     lineCap="round"
                     lineJoin="round"
                     strokeColor="#FF0000"
-                    coordinates={queue}
+                    coordinates={queue.map(q => q.coord)}
                   />
                 }
                 {features.map((feature, idx) => {
@@ -412,6 +470,7 @@ export default function Map() {
                             coordinate={feature.coords}
                             stopPropagation={true}
                             onPress={() => selectFeature(feature)}
+                            anchor={{ x: 0.5, y: 1 }}
                           >
                             <View style={{ alignItems: "center" }}>
                               <View style={styles.thumbnailContainer}>
@@ -455,6 +514,7 @@ export default function Map() {
                             <Marker
                               key={`polyline-${idx}-vertex-${coordIdx}`}
                               coordinate={coord}
+                              anchor={{ x: 0.5, y: 0.5 }}
                               stopPropagation={true}
                             >
                               <View style={styles.vertexMarker} />
@@ -479,6 +539,7 @@ export default function Map() {
                             <Marker
                               key={`polygon-${idx}-vertex-${coordIdx}`}
                               coordinate={coord}
+                              anchor={{ x: 0.5, y: 0.5 }}
                               stopPropagation={true}
                             >
                               <View style={styles.vertexMarker} />
@@ -490,17 +551,17 @@ export default function Map() {
                 })}
                 {selectedFeature && (
                   <Marker
-                    key={`nav-bubble-${selectedFeature.type}-${selectedFeature.desc}-${
-                      selectedFeature.type === "marker"
+                    key={`nav-bubble-${selectedFeature.type}-${selectedFeature.desc}-${selectedFeature.type === "marker"
                         ? selectedFeature.coords.latitude
                         : selectedFeature.coords[0]?.latitude
-                    }`}
+                      }`}
                     coordinate={
                       selectedFeature.type === "marker"
                         ? selectedFeature.coords
                         : selectedFeature.coords[0]
                     }
                     stopPropagation={true}
+                    anchor={{ x: 0.5, y: 1 }}
                   >
                     <View style={{ alignItems: "center" }}>
                       <View style={styles.calloutBubble}>
@@ -822,6 +883,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 1,
     elevation: 2,
+  },
+  silhouetteContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 64,
+    height: 64,
+  },
+  silhouetteFill: {
+    opacity: 0.35,
+    position: "absolute",
+    bottom: 0,
+  },
+  silhouetteOutline: {
+    position: "absolute",
+    bottom: 0,
+  },
+  silhouetteRing: {
+    position: "absolute",
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    bottom: -8,
+  },
+  silhouetteDot: {
+    position: "absolute",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    bottom: 0,
   },
   thumbnailContainer: {
     padding: 2,
